@@ -1,5 +1,8 @@
 # Documentation for Installing Prometheus and Grafana on Kubernetes
 
+## Topics Covered
+- [Creating Kubernetes Cluster using Kubeadm]()
+
 ## Creating Kubernetes Cluster using Kubeadm
 This documentation shows how to create a Single Node Cluster on a **Ubuntu 18.04**. 
 
@@ -34,7 +37,6 @@ sudo systemctl status docker
 Configure Docker to start on boot.
 ```
 sudo systemctl enable docker
-
 ```
 #### Install Kubeadm, Kubelet and Kubectl
 ```
@@ -226,15 +228,95 @@ Prometheus Specs can be configured using the CRD Prometheus created by the Prome
 ```
 kubectl get prometheus
 ```
-- Get the name of the service which Prometheus is using.
+- Get the name of the service which Prometheus pod connects to.
 ```
-kubectl get svc 
+kubectl get svc
 ```
 - Open the `prometheus-operator-prometheus` Prometheus Resource in Text Editor.
 ```
 kubectl edit prometheus prometheus-operator-prometheus
 ```
-- Find the tag `externalUrl` in `spec` section of the yaml code. Update the tag bith the below value. Save and exit.
+- Find the tag `externalUrl` in `spec` block and change its value as below. Replace `prometheus-operator-prometheus` with the name of service you got in 2nd point. Save and exit.
 ```
 externalUrl: http://prometheus-operator-prometheus/prometheus/
+```
+
+Now edit the prometheus service to make it accessible to outside world.
+```
+kubectl edit svc prometheus-operator-prometheus
+```
+- Find the tag `type` and change its value to `NodePort`.
+```
+type: NodePort
+```
+- Specify node port number as below in the `ports` block. Save and exit.
+```
+nodePort: 30002
+```
+
+#### Configure Grafana
+Grafana Configuration needs to be edited in a slighly different way then [Prometheus](README.md#configure-prometheus). Grafana Config is saved in a Config Map Resource, so we need to edit that Config Map in order to configure Grafana.
+- Get the name of the Config Map.
+```
+kubectl get cm | grep grafana
+```
+- Edit the Config Map.
+```
+kubectl edit cm prometheus-operator-grafana
+```
+- Add the following lines in the `data` block. Save and exit.
+```
+[server]
+  root_url = %(protocol)s://%(domain)s:%(http_port)s/grafana/
+  serve_from_sub_path = true
+```
+
+Now edit the grafana service to make it accessible to outside world.
+- Get the name of the Grafana service.
+```
+kubectl get svc | grep grafana
+```
+- Edit the Service.
+```
+kubectl edit svc prometheus-operator-grafana
+```
+- Find the tag `type` and change its value to `NodePort`.
+```
+type: NodePort
+```
+- Specify node port number as below in the `ports` block. Save and exit.
+```
+nodePort: 30000
+```
+
+#### Configure Alertmanager
+Alertmanager Specs can be configured using the CRD Alertmanager created by the Prometheus-Operator Helm Chart.
+- Display the Alertmanager resource. 
+```
+kubectl get alertmanager
+```
+- Get the name of the service which Alertmanager pod connects to.
+```
+kubectl get svc | grep alertmanager
+```
+- Open the `prometheus-operator-alertmanager` Alertmanager Resource in Text Editor.
+```
+kubectl edit alertmanager prometheus-operator-prometheus
+```
+- Find the tag `externalUrl` in `spec` block and change its value as below. Replace `prometheus-operator-alertmanager` with the name of service you got in 2nd point. Save and exit.
+```
+externalUrl: http://prometheus-operator-alertmanager.default:9093/alertmanager
+```
+
+Now edit the alertmanager service to make it accessible to outside world.
+```
+kubectl edit svc prometheus-operator-alertmanager
+```
+- Find the tag `type` and change its value to `NodePort`.
+```
+type: NodePort
+```
+- Specify node port number as below in the `ports` block. Save and exit.
+```
+nodePort: 30003
 ```
