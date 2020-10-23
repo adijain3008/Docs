@@ -29,8 +29,12 @@ sudo sysctl --system
 sudo apt-get update
 sudo apt install docker.io
 sudo systemctl start docker
-sudo systemctl enable docker
 sudo systemctl status docker
+```
+Configure Docker to start on boot.
+```
+sudo systemctl enable docker
+
 ```
 #### Install Kubeadm, Kubelet and Kubectl
 ```
@@ -64,4 +68,173 @@ kubectl taint nodes --all node-role.kubernetes.io/master-
 After setting up the Pod Network, you can verify that everything is up and running. Once the CoreDNS pod starts running, you can go ahead with further installations.
 ```
 kubectl get pods --all-namespaces
+```
+
+---
+
+## Installing Prometheus, Grafana and Alertmanager
+For this documentation we have used [Prometheus Opeartor](https://github.com/prometheus-operator/prometheus-operator) Helm chart to setup Prometheus, Grafana and Alertmanager in the Kubernetes Cluster.
+
+### Install Helm
+There are 2 parts for installing Helm:
+- Helm Client ([Helm](README.md#installing-helm-client))
+- Helm Server ([Tiller](README.md#setup-helm-server))
+
+#### Installing Helm Client
+The Helm version used for this documentation is v2.16.10. You can download the latest version as well.
+- Download the desired [version](https://github.com/helm/helm/releases).
+- Unpack the downloaded file. Replace the file name with the file you downloaded in the below command.
+```
+tar xvf helm-v2.16.10-linux-amd64.tar.gz
+```
+- Move the helm binary to the desired path.
+```
+mv linux-amd64/helm /usr/local/bin/helm
+```
+- Verify the installation by running `helm help` command.
+
+#### Setup Helm Server
+The easiest way to setup helm server is using `helm init`. After running `helm init`, check `helm version` if both client and server versions are shown, helm server has been setup successfully, if only Client Version is shown, follow the below steps to setup Tiller.
+
+- Create specific account for tiller
+```
+kubectl --namespace kube-system create serviceaccount tiller
+```
+
+- Check if you have clusterrole
+```
+kubectl --namespace kube-system get clusterrole cluster-admin -o yaml
+```
+
+- Check if account "tiller" in first clause has a binding to clusterrole "cluster-admin" 
+```
+kubectl --namespace kube-system get clusterrolebinding
+```
+
+- Create new clusterrolebinding for tiller if not there already
+```
+kubectl --namespace kube-system create clusterrolebinding tiller-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+```
+
+- Check if you really act as this account
+```
+kubectl --namespace kube-system get deploy tiller-deploy -o yaml
+```
+
+- The above output will not have settings "serviceAccount" and "serviceAccountName", so than add an account you want tiller to use
+```
+kubectl --namespace kube-system patch deploy tiller-deploy -p '{"spec":{"template":{"spec":{"serviceAccount":"tiller"}}}}'
+```
+
+Now running `helm version` should show both Client and Server Versions.
+
+
+### Install Prometheus-Operator Helm Chart
+This chart bootstraps a prometheus-operator deployment on a Kubernetes cluster using the Helm. The Prometheus Operator uses Kubernetes CRD's (Custom Resource Definitions) to simplify the deployment and configuration of Prometheus, Grafana, Alertmanager, and other monitoring components.
+
+#### Prerequisites
+- Kubernetes 1.10+
+- Helm 2.12+
+
+To install the helm chart with name `prometheus-operator`, run the below command. Also you can use `--namespace <name_of_namespace>` in the command to specify any particular namespace. If not specified, chart will be installed in `default` namespace.
+```
+helm install --name prometheus-operator stable/prometheus-operator
+```
+
+---
+
+## Setting up Nginx for Reverse proxy
+We will be using Nginx as reverse proxy to serve Prometheus, Grafana and Alertmanager at separate sub-path's on the same port. Install Nginx from [here](https://www.digitalocean.com/community/tutorials/how-to-install-nginx-on-ubuntu-18-04).
+
+#### Steps
+- Go to the belwo path and open the file `default` in a file editor. 
+```
+cd /etc/nginx/sites-enabled/
+sudo vi default
+```
+- Add the following content to the config file.
+```
+server {
+        listen 9101 default_server;
+        listen [::]:9101 default_server;
+
+        # SSL configuration
+        #
+        # listen 443 ssl default_server;
+        # listen [::]:443 ssl default_server;
+
+        root /usr/share/nginx/html;
+
+        # Add index.php to the list if you are using PHP
+        index index.html index.htm index.nginx-debian.html;
+
+        server_name _;
+
+        location / {
+                proxy_pass http://localhost:30001/;
+        }
+
+        # Configuration to serve Grafana on /grafana sub-path
+        location /grafana/ {
+                proxy_pass http://localhost:30000/;
+        }
+
+        # Configuration to serve Prometheus on /prometheus sub-path
+        location /prometheus/ {
+                proxy_pass http://localhost:30002/;
+
+                # Configuration to setup Basic Auth for Prometheus
+                auth_basic "Prometheus";
+                auth_basic_user_file /home/ubuntu/.htpasswd;
+        }
+
+        # Configuration to serve Alertmanager on /alertmanager sub-path
+        location /alertmanager/ {
+                proxy_pass http://localhost:30003/;
+        }
+
+}
+```
+### Adding Basic Auth to Prometheus
+Prometheus by default doesn't provide Authentication, so to make Prometheus more secure, we use Prometheus in conjunction with a reverse proxy (Nginx in this case) and applying authentication at the proxy layer.
+We'll use the htpasswd utility for this. This is in the apache2-utils packages.
+
+- Install apache2-utils package.
+```
+sudo apt update
+sudo apt install apache2-utils
+```
+- Create htpassword file by adding a new user. Provide the password when asked.
+```
+sudo htpasswd -c /home/ubuntu/.htpasswd admin
+```
+- Add these Basic Auth details in the Nginx Config file as shown above.
+```
+auth_basic "Prometheus";
+auth_basic_user_file /home/ubuntu/.htpasswd;
+```
+
+---
+
+## Configurations
+
+After configuring Nginx for Reverse Proxy and Prometheus and other tools to be accessible on there resp sub-path's, now we have to configure each tool to serve on that sub-path.
+
+#### Configure Prometheus
+Prometheus Specs can be configured using the CRD Prometheus created by the Prometheus-Operator Helm Chart.
+- Display the Prometheus resource. 
+```
+kubectl get prometheus
+```
+- Get the name of the service which Prometheus is using.
+```
+kubectl get svc 
+```
+- Open the `prometheus-operator-prometheus` Prometheus Resource in Text Editor.
+```
+kubectl edit prometheus prometheus-operator-prometheus
+```
+- Find the tag `externalUrl` in `spec` section of the yaml code. Update the tag bith the below value. Save and exit.
+```
+externalUrl: http://prometheus-operator-prometheus/prometheus/
 ```
