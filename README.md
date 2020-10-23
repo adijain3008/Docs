@@ -1,16 +1,31 @@
 # Documentation for Installing Prometheus and Grafana on Kubernetes
 
 ## Topics Covered
-- [Creating Kubernetes Cluster using Kubeadm]()
+- [Creating Kubernetes Cluster using Kubeadm](README.md#creating-kubernetes-cluster-using-kubeadm)
+  - [Prerequisites](README.md#prerequisites)
+  - [Steps](README.md#steps)
+- [Installing Prometheus, Grafana and Alertmanager](README.md#installing-prometheus-grafana-and-alertmanager)
+  - [Install Helm](README.md#install-helm)
+    - [Installing Helm Client](README.md#installing-helm-client)
+    - [Setup Helm Server](README.md#setup-helm-server)
+  - [Install Prometheus-Operator Helm Chart](README.md#install-prometheus-operator-helm-chart)
+- [Setting up Nginx for Reverse proxy](README.md#setting-up-nginx-for-reverse-proxy)
+  - [Steps](README.md#steps-1)
+  - [Adding Basic Auth to Prometheus](README.md#adding-basic-auth-to-prometheus)
+- [Configurations](README.md#configurations)
+  - [Configure Prometheus](README.md#configure-prometheus)
+  - [Configure Grafana](README.md#configure-grafana)
+  - [Configure Alertmanager](README.md#configure-alertmanager)
+    
 
 ## Creating Kubernetes Cluster using Kubeadm
 This documentation shows how to create a Single Node Cluster on a **Ubuntu 18.04**. 
 
 ### Prerequisites
-- 2 GB RAM (minimum)
-- 2 CPU's (minimum)
-- Swap should be disabled. See [here](README.md#disable-swap) for steps to disable swap
-- Full Network Connectivity between Nodes. See [here](README.md#deploy-calico-for-pod-network) for more details
+- 2 GB RAM (minimum).
+- 2 CPU's (minimum).
+- Swap should be disabled. See [here](README.md#disable-swap) for steps to disable swap.
+- Full Network Connectivity between Nodes. See [here](README.md#deploy-calico-for-pod-network) for more details.
 
 ### Steps
 
